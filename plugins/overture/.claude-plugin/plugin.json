@@ -1,0 +1,18 @@
+{
+  "name": "overture",
+  "version": "0.27.0",
+  "description": "Overture — see every Claude Code and Codex session from one stand: working, waiting for you, done",
+  "author": {
+    "name": "yeo11200"
+  },
+  "homepage": "https://github.com/yeo11200/overture",
+  "repository": "https://github.com/yeo11200/overture",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agents",
+    "dashboard",
+    "codex",
+    "orca",
+    "kanban"
+  ]
+}

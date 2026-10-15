@@ -1,3 +1,14 @@
+Overture
+Copyright 2026 yeo11200
+
+Overture is a derivative work of oh-my-symphony (https://github.com/cskwork/oh-my-symphony),
+itself derived from OpenAI's Symphony reference implementation. Their notice follows unchanged.
+Changes by yeo11200: the unified board (`symphony unified` / `overture`), session monitor and
+session graph, Codex integration, the Claude Code plugin and the macOS autostart command.
+Icons: simple-icons (CC0); the Claude and OpenAI marks belong to Anthropic and OpenAI.
+
+---
+
 oh-my-symphony
 Copyright 2026 cskwork and contributors
 

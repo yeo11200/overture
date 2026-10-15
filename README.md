@@ -1,3 +1,33 @@
+# Overture
+
+**See every AI agent from one stand.** Overture is a local, live chart of every Claude Code and
+Codex session you run — *working*, *waiting for you*, *done* — grouped by project, named after its
+terminal tab, with roles, threads and dependency arrows. It also runs a multi-agent Kanban
+orchestrator for all your projects in one process.
+
+```
+/plugin install overture --marketplace yeo11200/overture
+/overture
+```
+
+On Claude Code older than 2.1.275: `/plugin marketplace add yeo11200/overture`, then
+`/plugin install overture@overture`. The `/overture` skill installs the board
+(`uv tool install git+https://github.com/yeo11200/overture`), starts it at login
+(`overture autostart install`, macOS), connects Codex (`overture hooks install --codex`, then approve
+once in Codex `/hooks`) and opens http://127.0.0.1:8787/.
+
+- **Session chart** (default view): project → thread → agent card. Cards show the tool icon, tab or
+  session title, folder, branch, state and the latest prompt or approval request. Worktrees sit under
+  their repository. Desktop notification when a session waits for you.
+- **Sources**: Claude Code and Codex hooks, Orca terminal tabs, Claude transcripts and Codex's local
+  state DB (read-only). Nothing is stored except your roles, threads and arrows.
+- **Kanban**: every registered project's tickets on one board, one process, one port.
+
+Overture is built on [oh-my-symphony](https://github.com/cskwork/oh-my-symphony) (Apache-2.0), a
+multi-agent fork of OpenAI's Symphony; see `NOTICE`. The original documentation follows.
+
+---
+
 # oh-my-symphony
 
 **English | [한국어](README.ko.md)**
@@ -1059,24 +1089,7 @@ also editable from the web **Settings** page.
 
 ---
 
-## Agent Board plugin (Claude Code + Codex)
-
-A live chart of every Claude Code and Codex session — working, waiting for you, done —
-grouped by project, named after its terminal tab. Install from Claude Code:
-
-```
-/plugin install agent-board --marketplace yeo11200/oh-my-symphony
-/agent-board
-```
-
-On Claude Code older than 2.1.275, add the marketplace first:
-`/plugin marketplace add yeo11200/oh-my-symphony` then `/plugin install agent-board@oh-my-symphony`.
-The `/agent-board` skill installs the board server (`uv tool install git+https://github.com/yeo11200/oh-my-symphony`),
-starts it at login (`symphony unified autostart install`, macOS), connects Codex
-(`symphony unified hooks install --codex`, then approve once in Codex `/hooks`) and opens
-http://127.0.0.1:8787/. Icons: simple-icons (CC0); the marks belong to Anthropic and OpenAI.
-
-## Unified board (this fork)
+## Unified board (`overture`)
 
 Run every registered project in **one process on one port** and see all of
 their tickets on one Kanban:

@@ -1,5 +1,5 @@
 {
-  "description": "Forward Claude Code session events to the local Agent Board",
+  "description": "Forward Claude Code session events to the local Overture board",
   "hooks": {
     "SessionStart": [
       {

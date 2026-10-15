@@ -1,5 +1,5 @@
 #!/bin/sh
-# Forward one hook event (JSON on stdin) to the local Agent Board.
+# Forward one hook event (JSON on stdin) to the local Overture board.
 # Gives up after one second and always exits 0, so a stopped board never
 # slows down or fails the agent session.
 tool="${1:-claude}"

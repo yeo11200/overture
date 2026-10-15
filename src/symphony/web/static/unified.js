@@ -195,7 +195,7 @@
     els.summary.textContent = `프로젝트 ${hosted}/${data.projects.length} · 티켓 실행 ${running} · 확인 대기 ${review}`
       + ` · 세션 작업 중 ${c.working || 0} · 나를 기다림 ${c.waiting || 0}`;
     const attention = review + (c.waiting || 0);
-    document.title = attention ? `(${attention}) 통합 보드` : '통합 보드';
+    document.title = attention ? `(${attention}) Overture` : 'Overture';
   }
 
   function applyView() {

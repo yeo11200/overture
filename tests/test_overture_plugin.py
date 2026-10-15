@@ -9,14 +9,14 @@ from pathlib import Path
 from symphony.unified.hooks import TARGET_EVENTS
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins" / "agent-board"
+PLUGIN = ROOT / "plugins" / "overture"
 
 
 def test_marketplace_points_at_the_plugin():
     market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
     assert market["name"] and market["owner"]["name"]
     entry = market["plugins"][0]
-    assert entry["name"] == "agent-board"
+    assert entry["name"] == "overture"
     assert not entry["name"].startswith("claude-")
     assert (ROOT / entry["source"]).resolve() == PLUGIN
     manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
@@ -44,6 +44,6 @@ def test_emit_script_is_valid_and_never_fails():
 
 
 def test_skill_has_frontmatter():
-    text = (PLUGIN / "skills" / "agent-board" / "SKILL.md").read_text()
+    text = (PLUGIN / "skills" / "overture" / "SKILL.md").read_text()
     front = re.match(r"---\n(.*?)\n---\n", text, re.S)
-    assert front and "name: agent-board" in front.group(1) and "description:" in front.group(1)
+    assert front and "name: overture" in front.group(1) and "description:" in front.group(1)

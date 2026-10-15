@@ -1,4 +1,4 @@
-"""`symphony unified` — every registered project in one process on one port."""
+"""`overture` (also `symphony unified`): every agent session and project on one board."""
 from __future__ import annotations
 
 import argparse
@@ -129,6 +129,8 @@ def _autostart_main(argv: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:  # console script `overture`
+        argv = sys.argv[1:]
     if argv and argv[0] == "hooks":
         return _hooks_main(argv[1:])
     if argv and argv[0] == "autostart":

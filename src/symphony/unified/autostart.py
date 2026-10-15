@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-LABEL = "dev.oh-my-symphony.unified"
+LABEL = "dev.overture.board"
 PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
 LOG = Path.home() / "Library" / "Logs" / "symphony-unified.log"
 
