@@ -17,6 +17,11 @@
   - `PATCH /api/v1/unified/sessions/{id}` `{role?, thread?}` (role 허용값 검사, thread ≤40자)
   - `POST /api/v1/unified/sessions/edges` `{from, to}` (자기 자신·순환·없는 세션 409/400), `DELETE /api/v1/unified/sessions/edges` `{from, to}`
 
+### 1-1. 세션 제목 (`unified/titles.py` 신규)
+- `title_from_transcript(path)`: 파일 끝 256KB만 읽어 마지막 `{"type":"ai-title","aiTitle":...}` 반환, 없으면 앞에서부터 한 번 더. (mtime, size) 캐시.
+- 훅 이벤트의 `transcript_path`(`~/.claude/projects/` 아래만 허용)로 제목 갱신.
+- 상태 모름 보강: `~/.claude/projects/<cwd를 '-'로 바꾼 이름>/*.jsonl` 중 최근 수정 순으로 상태 모름 개수만큼 골라 세션 ID·제목을 가진 `unknown` 상태 카드로 표시(이미 이벤트로 알려진 세션 ID 제외). 나머지는 묶음 카드.
+
 ### 2. 프런트 (`unified.html/js/css`)
 - 상단 보기 전환(차트/칸반, localStorage). 차트에서는 기존 세션 줄 숨김, 칸반에서는 기존 화면 그대로.
 - 레이아웃(JS 계산): 그룹마다 세로 블록. 열 x: 프로젝트 40, 작업 줄기 300, 카드 560(너비 280). 카드 높이 72, 간격 16. 작업 줄기 노드는 소속 카드들의 세로 중앙.

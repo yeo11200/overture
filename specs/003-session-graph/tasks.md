@@ -1,6 +1,7 @@
 # Tasks: 세션 연결 그래프
 
 - [ ] T001 repo_info + 그룹 키를 git 공통 저장소 기준으로, 세션에 branch/folder — sessions.py (+tests)
+- [ ] T001b 세션 제목: transcript ai-title 읽기(꼬리 256KB, 캐시), 상태 모름 카드 이름 보강 — titles.py, sessions.py (+tests)
 - [ ] T002 GraphNotes 저장·순환 검사·정리 — graph.py (+tests)
 - [ ] T003 API: sessions 응답 확장, PATCH session, POST/DELETE edges — api.py (+tests)
 - [ ] T004 UI: 보기 전환, 차트 레이아웃·곡선·카드·역할·줄기 — static/
