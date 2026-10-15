@@ -1,5 +1,7 @@
 # Overture
 
+![Overture demo: sessions waiting, roles, threads and a hand-off arrow](docs/demo/overture-demo.gif)
+
 **See every AI agent from one stand.** Overture is a local, live chart of every Claude Code and
 Codex session you run — *working*, *waiting for you*, *done* — grouped by project, named after its
 terminal tab, with roles, threads and dependency arrows. It also runs a multi-agent Kanban
@@ -22,6 +24,9 @@ once in Codex `/hooks`) and opens http://127.0.0.1:8787/.
 - **Sources**: Claude Code and Codex hooks, Orca terminal tabs, Claude transcripts and Codex's local
   state DB (read-only). Nothing is stored except your roles, threads and arrows.
 - **Kanban**: every registered project's tickets on one board, one process, one port.
+
+Demo video: [docs/demo/overture-demo.mp4](docs/demo/overture-demo.mp4) (sample data only; re-record with
+`node docs/demo/record.mjs`).
 
 Overture is built on [oh-my-symphony](https://github.com/cskwork/oh-my-symphony) (Apache-2.0), a
 multi-agent fork of OpenAI's Symphony; see `NOTICE`. The original documentation follows.

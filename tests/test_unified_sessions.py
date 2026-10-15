@@ -263,3 +263,15 @@ def test_untitled_session_pairs_with_nearest_orca_folder(tmp_path):
     cards = {s["id"]: s for g in store.snapshot()["groups"] for s in g["sessions"]}
     assert cards["near"]["state"] == "waiting"
     assert cards["parent"]["state"] == "idle"
+
+
+def test_worktree_matches_project_registered_through_a_symlink(tmp_path):
+    real = tmp_path / "real" / "pay"
+    real.mkdir(parents=True)
+    link = tmp_path / "link"
+    link.symlink_to(tmp_path / "real")
+    projects = [Project("pay", "payments-api", str(link / "pay"), "", "127.0.0.1", 1)]
+    store = SessionStore(lambda: projects, watch_root=None, ignore_roots=[],
+                         repo_info=lambda cwd: (str(real), "review"))
+    store.apply(_ev("UserPromptSubmit", sid="w", cwd="/somewhere/pay-review"))
+    assert [g["key"] for g in store.snapshot()["groups"]] == ["pay"]

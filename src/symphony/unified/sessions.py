@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -230,8 +231,11 @@ class SessionStore:
         repo_root, _ = self._repo_info(cwd)
         projects = list(self._projects())
         if repo_root is not None:
+            # git reports real paths (/private/var/...), the registry may hold a
+            # symlinked spelling (/var/...): compare both resolved.
+            real_root = os.path.realpath(repo_root)
             for project in projects:
-                if project.git_repo.rstrip("/") == repo_root.rstrip("/"):
+                if os.path.realpath(project.git_repo) == real_root:
                     return project.id, project.name, project.id
         best: Project | None = None
         for project in projects:
