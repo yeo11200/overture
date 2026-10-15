@@ -20,6 +20,7 @@ from typing import Any, Callable, Iterable
 
 from ..logging import get_logger
 from ..projects import Project
+from .codex_titles import codex_title
 from .titles import DEFAULT_ROOT, recent_transcripts, title_from_transcript
 
 log = get_logger()
@@ -32,11 +33,15 @@ IDLE_GLYPH = "✳"  # Claude Code's tab title prefix when idle; a spinner while 
 REPO_CACHE_S = 60
 AGENT_COMMANDS = {"claude", "codex"}
 
+# Claude Code and Codex share these hook event names.
 _STATE_FOR_EVENT = {
     "SessionStart": "idle",
     "UserPromptSubmit": "working",
+    "PreToolUse": "working",  # an approved request resumes work
     "Notification": "waiting",
+    "PermissionRequest": "waiting",
     "Stop": "done",
+    "Interrupt": "done",
 }
 _STATE_ORDER = {"waiting": 0, "working": 1, "idle": 2, "done": 3, "unknown": 4}
 
@@ -242,7 +247,7 @@ class SessionStore:
 
     # -- updates -------------------------------------------------------------
 
-    def apply(self, event: dict[str, Any]) -> AgentSession | None:
+    def apply(self, event: dict[str, Any], tool: str = "claude") -> AgentSession | None:
         name = event.get("hook_event_name")
         sid = event.get("session_id")
         cwd = event.get("cwd")
@@ -256,7 +261,8 @@ class SessionStore:
         state = _STATE_FOR_EVENT.get(str(name))
         if state is None:
             return None
-        session = self._sessions.get(sid) or AgentSession(id=sid, cwd=cwd, state=state)
+        session = self._sessions.get(sid) or AgentSession(id=sid, cwd=cwd, state=state, tool=tool)
+        session.tool = tool
         session.cwd = cwd
         session.state = state
         session.updated_at = self._now()
@@ -267,9 +273,17 @@ class SessionStore:
                 session.prompt = " ".join(prompt.split())[:PROMPT_CHARS]
         elif name == "Notification" and event.get("message"):
             session.message = str(event["message"])[:MESSAGE_CHARS]
-        transcript = event.get("transcript_path")
-        if isinstance(transcript, str) and Path(transcript).is_relative_to(self._transcripts):
-            session.title = title_from_transcript(Path(transcript)) or session.title
+        elif name == "PermissionRequest":
+            tool_input = event.get("tool_input")
+            detail = tool_input.get("description") if isinstance(tool_input, dict) else None
+            asked = detail or event.get("tool_name") or "a tool"
+            session.message = f"승인 요청: {asked}"[:MESSAGE_CHARS]
+        if tool == "codex":
+            session.title = codex_title(sid) or session.title
+        else:
+            transcript = event.get("transcript_path")
+            if isinstance(transcript, str) and Path(transcript).is_relative_to(self._transcripts):
+                session.title = title_from_transcript(Path(transcript)) or session.title
         self._sessions[sid] = session
         return session
 

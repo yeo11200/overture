@@ -1,0 +1,10 @@
+{
+  "name": "agent-board",
+  "version": "0.1.0",
+  "description": "Live chart of your Claude Code and Codex sessions: working, waiting for you, done",
+  "author": { "name": "yeo11200" },
+  "homepage": "https://github.com/yeo11200/oh-my-symphony",
+  "repository": "https://github.com/yeo11200/oh-my-symphony",
+  "license": "Apache-2.0",
+  "keywords": ["agents", "dashboard", "codex", "orca", "kanban"]
+}

@@ -1059,6 +1059,23 @@ also editable from the web **Settings** page.
 
 ---
 
+## Agent Board plugin (Claude Code + Codex)
+
+A live chart of every Claude Code and Codex session — working, waiting for you, done —
+grouped by project, named after its terminal tab. Install from Claude Code:
+
+```
+/plugin install agent-board --marketplace yeo11200/oh-my-symphony
+/agent-board
+```
+
+On Claude Code older than 2.1.275, add the marketplace first:
+`/plugin marketplace add yeo11200/oh-my-symphony` then `/plugin install agent-board@oh-my-symphony`.
+The `/agent-board` skill installs the board server (`uv tool install git+https://github.com/yeo11200/oh-my-symphony`),
+starts it at login (`symphony unified autostart install`, macOS), connects Codex
+(`symphony unified hooks install --codex`, then approve once in Codex `/hooks`) and opens
+http://127.0.0.1:8787/. Icons: simple-icons (CC0); the marks belong to Anthropic and OpenAI.
+
 ## Unified board (this fork)
 
 Run every registered project in **one process on one port** and see all of

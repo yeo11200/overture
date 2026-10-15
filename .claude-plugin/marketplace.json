@@ -1,0 +1,16 @@
+{
+  "name": "oh-my-symphony",
+  "owner": { "name": "yeo11200" },
+  "metadata": {
+    "description": "Agent Board: every Claude Code and Codex session on one live chart"
+  },
+  "plugins": [
+    {
+      "name": "agent-board",
+      "source": "./plugins/agent-board",
+      "description": "Send Claude Code session state to the local Agent Board (symphony unified) and set it up",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}

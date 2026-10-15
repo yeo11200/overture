@@ -162,6 +162,7 @@
       const rows = g.sessions.map((s) => `
         <li class="sess" title="${esc(s.cwd)}">
           <span class="sess-state ${esc(s.state)}">${SESSION_LABEL[s.state] || esc(s.state)}</span>
+          ${window.UnifiedGraph.icon(s.tool)}
           <span class="sess-text">${esc(s.state === 'waiting' && s.message ? s.message : s.title || s.prompt || s.folder)}</span>
           <span class="sess-ago">${ago(s.updated_at)}</span>
         </li>`);

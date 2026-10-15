@@ -92,8 +92,15 @@ describe('session graph', () => {
       expect((await post(base, '/api/v1/unified/sessions/events',
         { hook_event_name: 'UserPromptSubmit', session_id: id, cwd, prompt })).status).toBe(200);
     }
+    expect((await post(base, '/api/v1/unified/sessions/events?tool=codex',
+      { hook_event_name: 'PermissionRequest', session_id: 'g-codex', cwd: '/tmp/e2e-graph/beta',
+        tool_name: 'Bash', tool_input: { description: 'npm test' } })).status).toBe(200);
     await app.open('/');
     const chart = screen.getByRole('main', '세션 차트');
+    const codex = browser.locator('.gcard[data-id="g-codex"]');
+    await expect(codex.getByRole('img', 'Codex')).toBeVisible();
+    await expect(codex.getByText('승인 요청: npm test')).toBeVisible();
+    await expect(browser.locator('.gcard[data-id="g-impl"]').getByRole('img', 'Claude')).toBeVisible();
     await expect(screen.getByRole('tab', '차트')).toHaveAttribute('aria-selected', 'true');
     await expect(chart.getByText('단위 변환 구현')).toBeVisible();
     await expect(chart.getByText('구현 리뷰')).toBeVisible();

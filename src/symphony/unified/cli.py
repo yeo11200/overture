@@ -13,7 +13,7 @@ from ..projects import ProjectRegistry, projects_file
 from .api import build_unified_app, run_unified_app
 from .discovery import Discovery
 from .graph import GraphNotes
-from .hooks import hooks_installed, install_hooks, uninstall_hooks
+from .hooks import TARGET_FILES, hooks_installed, install_hooks, uninstall_hooks
 from .sessions import SessionStore
 from .supervisor import Supervisor
 
@@ -83,21 +83,56 @@ def _hooks_main(argv: list[str]) -> int:
     )
     parser.add_argument("action", choices=["install", "uninstall", "status"])
     parser.add_argument("--port", type=int, default=8787)
+    tool = parser.add_mutually_exclusive_group()
+    tool.add_argument("--claude", dest="target", action="store_const", const="claude")
+    tool.add_argument("--codex", dest="target", action="store_const", const="codex")
+    parser.set_defaults(target="claude")
     args = parser.parse_args(argv)
+    path = TARGET_FILES[args.target]
     if args.action == "install":
-        added = install_hooks(args.port)
-        print(f"installed: {', '.join(added) or 'already present'}")
+        added = install_hooks(args.port, path, args.target)
+        print(f"{args.target} hooks installed: {', '.join(added) or 'already present'}")
+        if added and args.target == "codex":
+            print("Codex runs new hooks only after you approve them: open Codex and run /hooks.")
     elif args.action == "uninstall":
-        removed = uninstall_hooks()
-        print(f"removed: {', '.join(removed) or 'nothing to remove'}")
+        removed = uninstall_hooks(path, args.target)
+        print(f"{args.target} hooks removed: {', '.join(removed) or 'nothing to remove'}")
     else:
-        print(f"installed: {', '.join(hooks_installed()) or 'none'}")
+        print(f"{args.target} hooks: {', '.join(hooks_installed(path, args.target)) or 'none'}")
+    return 0
+
+
+def _autostart_main(argv: list[str]) -> int:
+    from .autostart import AutostartError, autostart_status, install_autostart, uninstall_autostart
+
+    parser = argparse.ArgumentParser(
+        prog="symphony unified autostart",
+        description="Run `symphony unified` at login (macOS launchd).",
+    )
+    parser.add_argument("action", choices=["install", "uninstall", "status"])
+    parser.add_argument("--port", type=int, default=8787)
+    parser.add_argument("--watch", default="", help="folder whose new git repos auto-register")
+    args = parser.parse_args(argv)
+    try:
+        if args.action == "install":
+            extra = ["--watch", str(Path(args.watch).expanduser())] if args.watch else []
+            print(f"autostart installed: {install_autostart(args.port, extra)}")
+            print(f"board: http://127.0.0.1:{args.port}/")
+        elif args.action == "uninstall":
+            print("autostart removed" if uninstall_autostart() else "autostart was not installed")
+        else:
+            print(autostart_status())
+    except AutostartError as exc:
+        print(f"symphony unified autostart: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     if argv and argv[0] == "hooks":
         return _hooks_main(argv[1:])
+    if argv and argv[0] == "autostart":
+        return _autostart_main(argv[1:])
     parser = argparse.ArgumentParser(
         prog="symphony unified",
         description="Run every registered project in one process and serve one board.",
@@ -106,8 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument(
         "--watch",
-        default=str(Path.home() / "Documents" / "_shin"),
-        help="auto-register new git repos under this folder ('' disables)",
+        default="",
+        help="auto-register new git repos under this folder (default: off)",
     )
     parser.add_argument(
         "--exclude",

@@ -373,6 +373,9 @@ dialog input, dialog textarea, dialog select {
 .sdot.idle { background: var(--text-2); }
 .sdot.unknown { background: transparent; border: 1.5px solid var(--muted); }
 @media (prefers-reduced-motion: reduce) { .sdot.working { animation: none; } }
+.gicon { flex: none; width: 14px; height: 14px; fill: currentColor; }
+.gicon.claude { fill: #D97757; }
+.sess .gicon { width: 12px; height: 12px; align-self: center; }
 .gtitle { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .grole {
   flex: none;

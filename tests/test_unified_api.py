@@ -227,3 +227,20 @@ def test_roles_threads_and_edges_round_trip(tmp_path):
     assert listed["edges"] == [["impl", "rev"]]
     assert d1 == {"removed": True}
     assert after["edges"] == []
+
+
+def test_event_tool_param_is_validated(tmp_path):
+    async def go():
+        client, _ = await _client(tmp_path)
+        try:
+            ok = await client.post("/api/v1/unified/sessions/events?tool=codex", json={
+                "hook_event_name": "UserPromptSubmit", "session_id": "c1", "cwd": str(tmp_path / "a")})
+            bad = await client.post("/api/v1/unified/sessions/events?tool=gpt", json={})
+            listed = await (await client.get("/api/v1/unified/sessions")).json()
+            return ok.status, bad.status, listed
+        finally:
+            await client.close()
+
+    ok, bad, listed = _run(go())
+    assert (ok, bad) == (200, 400)
+    assert next(s for g in listed["groups"] for s in g["sessions"])["tool"] == "codex"

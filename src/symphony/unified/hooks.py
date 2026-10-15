@@ -1,6 +1,8 @@
-"""Install the Claude Code hooks that feed the unified session monitor.
+"""Install the Claude Code / Codex hooks that feed the unified session monitor.
 
-Entries are appended to ~/.claude/settings.json and tagged with MARKER so
+Entries are appended to ~/.claude/settings.json (Claude) or ~/.codex/hooks.json
+(Codex, which asks the user to approve new hooks once in `/hooks`) and tagged
+with MARKER so
 install is idempotent and uninstall removes only what it added. The command
 gives up after one second and always exits 0, so a stopped unified server
 never slows down or fails a Claude Code session.
@@ -13,14 +15,21 @@ from pathlib import Path
 from typing import Any
 
 MARKER = "# symphony-session-monitor"
-EVENTS = ("SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd")
+TARGET_EVENTS = {
+    "claude": ("SessionStart", "UserPromptSubmit", "PreToolUse", "Notification",
+               "PermissionRequest", "Stop", "SessionEnd"),
+    "codex": ("SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest",
+              "Stop", "Interrupt", "SessionEnd"),
+}
+EVENTS = TARGET_EVENTS["claude"]
 DEFAULT_SETTINGS = Path.home() / ".claude" / "settings.json"
+TARGET_FILES = {"claude": DEFAULT_SETTINGS, "codex": Path.home() / ".codex" / "hooks.json"}
 
 
-def hook_command(port: int) -> str:
+def hook_command(port: int, tool: str = "claude") -> str:
     return (
         "curl -s -m 1 -o /dev/null -X POST -H 'Content-Type: application/json' "
-        f"--data-binary @- http://127.0.0.1:{port}/api/v1/unified/sessions/events "
+        f"--data-binary @- 'http://127.0.0.1:{port}/api/v1/unified/sessions/events?tool={tool}' "
         f"|| true {MARKER}"
     )
 
@@ -50,35 +59,36 @@ def _ours(group: Any) -> bool:
     )
 
 
-def hooks_installed(path: Path = DEFAULT_SETTINGS) -> list[str]:
+def hooks_installed(path: Path = DEFAULT_SETTINGS, target: str = "claude") -> list[str]:
     hooks = _load(path).get("hooks", {})
-    return [e for e in EVENTS if any(_ours(g) for g in hooks.get(e, []))]
+    return [e for e in TARGET_EVENTS[target] if any(_ours(g) for g in hooks.get(e, []))]
 
 
-def install_hooks(port: int = 8787, path: Path = DEFAULT_SETTINGS) -> list[str]:
+def install_hooks(
+    port: int = 8787, path: Path = DEFAULT_SETTINGS, target: str = "claude"
+) -> list[str]:
     """Add missing monitor hooks; returns the events that were added."""
     data = _load(path)
     hooks = data.setdefault("hooks", {})
     added = []
-    for event in EVENTS:
+    for event in TARGET_EVENTS[target]:
         groups = hooks.setdefault(event, [])
         if any(_ours(g) for g in groups):
             continue
-        groups.append(
-            {"matcher": "", "hooks": [{"type": "command", "command": hook_command(port)}]}
-        )
+        handler = {"type": "command", "command": hook_command(port, target), "timeout": 5}
+        groups.append({"matcher": "", "hooks": [handler]} if target == "claude" else {"hooks": [handler]})
         added.append(event)
     if added:
         _save(path, data)
     return added
 
 
-def uninstall_hooks(path: Path = DEFAULT_SETTINGS) -> list[str]:
+def uninstall_hooks(path: Path = DEFAULT_SETTINGS, target: str = "claude") -> list[str]:
     """Remove only the monitor hooks; returns the events touched."""
     data = _load(path)
     hooks = data.get("hooks", {})
     removed = []
-    for event in EVENTS:
+    for event in TARGET_EVENTS[target]:
         groups = hooks.get(event, [])
         kept = [g for g in groups if not _ours(g)]
         if len(kept) != len(groups):

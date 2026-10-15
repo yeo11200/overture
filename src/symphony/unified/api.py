@@ -197,7 +197,10 @@ def build_unified_app(
     async def session_event(request: web.Request) -> web.Response:
         if sessions is None:
             return _json_error(409, "sessions_disabled", "session monitor is off")
-        sessions.apply(await _read_json(request))
+        tool = request.query.get("tool", "claude")
+        if tool not in ("claude", "codex"):
+            return _json_error(400, "invalid_tool", "tool must be claude or codex")
+        sessions.apply(await _read_json(request), tool=tool)
         return web.json_response({"ok": True})
 
     async def session_list(_request: web.Request) -> web.Response:
