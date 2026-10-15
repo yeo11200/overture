@@ -55,3 +55,6 @@ WORKFLOW.demo.*.md
 .sdlc/archive/*/harvest.md
 .sdlc/work/*/spec.md
 .sdlc/archive/*/spec.md
+
+node_modules/
+.e2e/

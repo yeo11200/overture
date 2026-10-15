@@ -159,7 +159,9 @@ def build_unified_app(supervisor: Supervisor, *, discovery: Any) -> web.Applicat
         _front, body_text = await asyncio.to_thread(parse_ticket_file, path)
         issue = await asyncio.to_thread(tracker.fetch_issue_full_by_id, identifier)
         orch = runtime.orchestrator
-        card = _issue_card(issue) if issue else {"identifier": identifier}
+        card: dict[str, Any] = (
+            _issue_card(issue) if issue else {"identifier": identifier}
+        )
         card["project_id"] = runtime.project.id
         card["description"] = body_text
         card["live"] = _live_by_identifier(orch).get(identifier) if orch else None

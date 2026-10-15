@@ -1059,6 +1059,29 @@ also editable from the web **Settings** page.
 
 ---
 
+## Unified board (this fork)
+
+Run every registered project in **one process on one port** and see all of
+their tickets on one Kanban:
+
+```bash
+symphony unified                      # http://127.0.0.1:8787/
+symphony unified --watch ''           # disable auto-registration
+symphony unified --exclude oh-my-symphony,mori-memo
+```
+
+- Hosts each file-tracker project's orchestrator in the same event loop (no
+  per-project ports). Per-project env (`SYMPHONY_WORKFLOW_DIR`) travels with
+  each dispatch, so projects never see each other's paths.
+- Project chips filter the board and pause/resume new dispatches per project
+  (running workers continue). Pause state lives in `~/.symphony/unified-state.json`.
+- Every 5 minutes it registers new git repos under `--watch`
+  (default `~/Documents/_shin`). Failures are recorded once in
+  `~/.symphony/unified-failures.json` and retried only from the board.
+- A project already run by `symphony service` shows as *conflict*;
+  `symphony service start` refuses a project hosted by a live unified process.
+- Spec, plan and tasks: `specs/001-unified-board/`.
+
 ## Run
 
 ### Web app + JSON API
