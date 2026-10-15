@@ -396,6 +396,34 @@ def clear_record(workflow_path: str | Path) -> None:
         return
 
 
+def unified_marker_path(workflow_path: str | Path) -> Path:
+    """Marker a `symphony unified` process writes for each project it hosts."""
+    return record_path_for(workflow_path).parent / "unified.json"
+
+
+def write_unified_marker(workflow_path: str | Path, *, pid: int, port: int) -> None:
+    path = unified_marker_path(workflow_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"pid": pid, "port": port}) + "\n", encoding="utf-8")
+
+
+def clear_unified_marker(workflow_path: str | Path) -> None:
+    try:
+        unified_marker_path(workflow_path).unlink()
+    except FileNotFoundError:
+        return
+
+
+def unified_owner_pid(workflow_path: str | Path) -> int | None:
+    """PID of the live `symphony unified` process hosting this workflow."""
+    try:
+        data = json.loads(unified_marker_path(workflow_path).read_text(encoding="utf-8"))
+        pid = int(data["pid"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return pid if is_process_running(pid) else None
+
+
 def _is_process_running_windows(pid: int) -> bool:
     # PROCESS_QUERY_LIMITED_INFORMATION keeps the handle read-only.  If that
     # right is denied, fall back to PROCESS_QUERY_INFORMATION for older hosts.
@@ -868,6 +896,13 @@ def _start(args: argparse.Namespace) -> int:
 
 
 def _start_locked(args: argparse.Namespace, *, workflow: Path, cfg: Any) -> int:
+    unified_pid = unified_owner_pid(workflow)
+    if unified_pid is not None:
+        print(
+            f"managed by symphony unified pid={unified_pid}; "
+            "pause or remove it there instead of starting a second orchestrator"
+        )
+        return 1
     port = _resolve_port(args.port, cfg)
     current = service_status(workflow, port=port)
     if current.state == "running" and current.record is not None:

@@ -46,6 +46,7 @@ SUBCOMMANDS: tuple[tuple[str, str], ...] = (
     ("service", "run the orchestrator as a managed background service"),
     ("project", "register and run independent project services"),
     ("hub", "serve the multi-project hub"),
+    ("unified", "run every project in one process and serve one board"),
     ("runs", "print recent run-registry attempts"),
     ("release", "validate application release evidence"),
     ("wiki-sweep", "lint docs/llm-wiki for duplicate slugs and orphans"),
@@ -467,6 +468,10 @@ def main(argv: list[str] | None = None) -> int:
         from .. import hub
 
         return hub.main(raw_argv[1:])
+    if raw_argv and raw_argv[0] == "unified":
+        from ..unified import cli as unified_cli
+
+        return unified_cli.main(raw_argv[1:])
     if raw_argv and raw_argv[0] == "service":
         from .. import service
 

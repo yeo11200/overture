@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>통합 보드</title>
+  <link rel="stylesheet" href="/static/unified.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>통합 보드</h1>
+      <span class="summary" id="summary" aria-live="polite"></span>
+    </div>
+    <div class="actions">
+      <input type="search" id="search" placeholder="티켓 검색 (/)" aria-label="티켓 검색" />
+      <button type="button" class="btn primary" id="new-ticket">새 티켓</button>
+    </div>
+  </header>
+
+  <nav class="projects" id="projects" aria-label="프로젝트"></nav>
+  <div class="notice" id="notice" hidden></div>
+
+  <main class="board" id="board" aria-label="칸반"></main>
+
+  <aside class="drawer" id="drawer" aria-label="티켓 상세" hidden>
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-project" id="drawer-project"></div>
+        <h2 id="drawer-title"></h2>
+      </div>
+      <button type="button" class="btn ghost" id="drawer-close" aria-label="닫기">✕</button>
+    </div>
+    <dl class="drawer-meta" id="drawer-meta"></dl>
+    <pre class="drawer-body" id="drawer-body"></pre>
+  </aside>
+
+  <dialog id="ticket-dialog">
+    <form method="dialog" id="ticket-form">
+      <h2>새 티켓</h2>
+      <label>프로젝트<select name="project" id="ticket-project" required></select></label>
+      <label>제목<input name="title" required maxlength="200" autocomplete="off" /></label>
+      <label>설명<textarea name="description" rows="6"></textarea></label>
+      <label>우선순위
+        <select name="priority">
+          <option value="">없음</option>
+          <option value="1">1 · 긴급</option>
+          <option value="2">2 · 높음</option>
+          <option value="3">3 · 보통</option>
+          <option value="4">4 · 낮음</option>
+        </select>
+      </label>
+      <p class="form-error" id="ticket-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" id="ticket-cancel">취소</button>
+        <button type="submit" class="btn primary">만들기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/unified.js"></script>
+</body>
+</html>

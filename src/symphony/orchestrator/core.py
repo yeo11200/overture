@@ -928,7 +928,13 @@ class Orchestrator:
         build_backend: Callable[[BackendInit], AgentBackend] | None = None,
         improvement_runner: ImprovementRunner | None = None,
         improvement_lease: Lease | None = None,
+        isolated_env: bool = False,
     ) -> None:
+        # Unified mode runs many orchestrators in one process, so per-project
+        # values travel in the dispatch env instead of process-wide os.environ.
+        self._isolated_env = isolated_env
+        # Project-level hold: running workers continue, nothing new dispatches.
+        self.dispatch_paused = False
         self._service_instance_id = normalize_service_instance_id(
             os.environ.pop(SERVICE_INSTANCE_ENV, None)
         )
@@ -2954,7 +2960,8 @@ class Orchestrator:
         # authors can then reference it from `claude.command` etc., e.g.
         # `--add-dir "$SYMPHONY_WORKFLOW_DIR/kanban"` so Claude Code accepts
         # writes through the host-board junction installed by after_create.
-        os.environ["SYMPHONY_WORKFLOW_DIR"] = str(cfg.workflow_path.parent)
+        if not self._isolated_env:
+            os.environ["SYMPHONY_WORKFLOW_DIR"] = str(cfg.workflow_path.parent)
         # The board-tool protocol in the stage prompts and the chat preamble
         # requires the `symphony` CLI; a venv install is not necessarily on
         # the worker's PATH. Prompts reference `${SYMPHONY_CLI:-symphony}`.
@@ -4011,6 +4018,9 @@ class Orchestrator:
                 log.info("run_leases_expired", count=expired)
 
         await self._reconcile_running(cfg)
+        if self.dispatch_paused:
+            await self._notify_observers()
+            return
         # G1 — drop sticky locks for tickets no longer in flight. `_claimed`
         # gathers ids on every dispatch path that wants to skip a ticket on
         # the *current* tick (conflict_blocked, hit_max_turns,
@@ -6540,6 +6550,9 @@ class Orchestrator:
             except (TypeError, ValueError):
                 payload = "[]"
             env["SYMPHONY_REWIND_SCOPE"] = payload
+        if self._isolated_env:
+            env["SYMPHONY_WORKFLOW_DIR"] = str(cfg.workflow_path.parent)
+            env["SYMPHONY_CLI"] = resolve_symphony_cli()
         return env
 
     # ------------------------------------------------------------------
@@ -8610,7 +8623,7 @@ class Orchestrator:
         retry = self._retry.pop(issue_id, None)
         if retry is None:
             return
-        if issue_id in self._paused_issue_ids:
+        if issue_id in self._paused_issue_ids or self.dispatch_paused:
             self._repark_paused_retry(retry)
             return
         cfg = self._workflow_state.current()
