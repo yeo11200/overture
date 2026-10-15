@@ -191,7 +191,7 @@ hooks:
     git -C "$HOST_REPO" worktree remove --force "$WORKTREE_PATH" 2>/dev/null || true
 
 agent:
-  kind: codex          # codex | claude | gemini | agy | kiro | opencode | pi | prime-agent
+  kind: claude         # codex | claude | gemini | agy | kiro | opencode | pi | prime-agent
   # Backends to switch to, in order, when a worker exits on a quota /
   # usage-limit error ("usage limit", "insufficient_quota", "billing"…).
   # Transient rate limits (429) still retry on the same backend. Symphony
