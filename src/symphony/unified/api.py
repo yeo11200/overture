@@ -28,6 +28,7 @@ from ..webapi import (
     _valid_states,
     _wrap,
 )
+from .sessions import SessionStore
 from .supervisor import ProjectRuntime, Supervisor
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
@@ -77,8 +78,11 @@ def _merge_columns(runtimes: list[ProjectRuntime]) -> list[dict[str, Any]]:
     return list(merged.values())
 
 
-def build_unified_app(supervisor: Supervisor, *, discovery: Any) -> web.Application:
-    app = web.Application(middlewares=[_hub_guard], client_max_size=256 * 1024)
+def build_unified_app(
+    supervisor: Supervisor, *, discovery: Any, sessions: SessionStore | None = None
+) -> web.Application:
+    # Hook payloads carry the full prompt, which can be a large paste.
+    app = web.Application(middlewares=[_hub_guard], client_max_size=4 * 1024 * 1024)
 
     def _runtime(request: web.Request) -> ProjectRuntime:
         runtime = supervisor.get(request.match_info["project_id"])
@@ -185,7 +189,20 @@ def build_unified_app(supervisor: Supervisor, *, discovery: Any) -> web.Applicat
         added = await discovery.scan_once()
         return web.json_response({"added": added, "failures": discovery.failures()})
 
+    async def session_event(request: web.Request) -> web.Response:
+        if sessions is None:
+            return _json_error(409, "sessions_disabled", "session monitor is off")
+        sessions.apply(await _read_json(request))
+        return web.json_response({"ok": True})
+
+    async def session_list(_request: web.Request) -> web.Response:
+        if sessions is None:
+            return web.json_response({"groups": [], "counts": {}})
+        return web.json_response(sessions.snapshot(), headers={"Cache-Control": "no-store"})
+
     app.router.add_get("/", index)
+    app.router.add_post("/api/v1/unified/sessions/events", _wrap(session_event))
+    app.router.add_get("/api/v1/unified/sessions", _wrap(session_list))
     app.router.add_static("/static/", STATIC_DIR)
     app.router.add_get("/api/v1/unified/board", _wrap(board))
     app.router.add_post(

@@ -31,6 +31,9 @@
 
   let data = { projects: [], columns: [], cards: [] };
   let discovery = { failures: {} };
+  let sessions = { groups: [], counts: {} };
+  const notified = new Set(); // `${session}:${updated_at}` already announced
+  const SESSION_LABEL = { working: '작업 중', waiting: '나를 기다림', done: '완료', idle: '대기', unknown: '상태 모름' };
   let lastRender = '';
   let openCard = null; // {project_id, identifier}
   const hidden = new Set(loadHidden());
@@ -138,28 +141,77 @@
     }).join('');
   }
 
+  function ago(epochSeconds) {
+    const s = Math.max(0, Math.round(Date.now() / 1000 - epochSeconds));
+    if (s < 60) return `${s}초`;
+    if (s < 3600) return `${Math.floor(s / 60)}분`;
+    return `${Math.floor(s / 3600)}시간`;
+  }
+
+  function renderSessions() {
+    const el = $('sessions');
+    el.hidden = sessions.groups.length === 0;
+    el.innerHTML = sessions.groups.map((g) => {
+      const waiting = g.sessions.some((s) => s.state === 'waiting');
+      const total = g.sessions.length + g.unknown;
+      const rows = g.sessions.map((s) => `
+        <li class="sess" title="${esc(s.cwd)}">
+          <span class="sess-state ${esc(s.state)}">${SESSION_LABEL[s.state] || esc(s.state)}</span>
+          <span class="sess-text">${esc(s.state === 'waiting' && s.message ? s.message : s.prompt || '—')}</span>
+          <span class="sess-ago">${ago(s.updated_at)}</span>
+        </li>`);
+      if (g.unknown) {
+        rows.push(`<li class="sess"><span class="sess-state unknown">${SESSION_LABEL.unknown}</span>
+          <span class="sess-text">실행 중 ${g.unknown}개 (이벤트 대기)</span></li>`);
+      }
+      return `
+        <article class="sgroup${waiting ? ' waiting' : ''}" style="--c:${color(g.project_id || g.key)}">
+          <div class="sgroup-head"><span class="dot"></span>${esc(g.name)}<span class="count">세션 ${total}</span></div>
+          <ul>${rows.join('')}</ul>
+        </article>`;
+    }).join('');
+  }
+
+  function notifyWaiting() {
+    for (const g of sessions.groups) {
+      for (const s of g.sessions) {
+        const key = `${s.id}:${s.updated_at}`;
+        if (s.state !== 'waiting' || notified.has(key)) continue;
+        notified.add(key);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(`${g.name} · 나를 기다림`, { body: s.message || s.prompt || '', tag: s.id });
+        }
+      }
+    }
+  }
+
   function renderSummary() {
     const running = data.cards.filter((c) => c.live?.status === 'running').length;
     const review = data.cards.filter((c) => c.state.toLowerCase() === REVIEW_LANE).length;
     const hosted = data.projects.filter((p) => p.status === 'running' || p.status === 'paused').length;
-    els.summary.textContent = `프로젝트 ${hosted}/${data.projects.length} · 실행 중 ${running} · 확인 대기 ${review}`;
-    document.title = review ? `(${review}) 통합 보드` : '통합 보드';
+    const c = sessions.counts || {};
+    els.summary.textContent = `프로젝트 ${hosted}/${data.projects.length} · 티켓 실행 ${running} · 확인 대기 ${review}`
+      + ` · 세션 작업 중 ${c.working || 0} · 나를 기다림 ${c.waiting || 0}`;
+    const attention = review + (c.waiting || 0);
+    document.title = attention ? `(${attention}) 통합 보드` : '통합 보드';
   }
 
   function render(force = false) {
-    const key = JSON.stringify([data, discovery, els.search.value, [...hidden]]);
+    const key = JSON.stringify([data, discovery, sessions, els.search.value, [...hidden], Math.floor(Date.now() / 30000)]);
     if (!force && key === lastRender) return;
     lastRender = key;
     renderSummary();
     renderProjects();
     renderNotice();
+    renderSessions();
     renderBoard();
   }
 
   async function refresh() {
     try {
-      [data, discovery] = await Promise.all([api('/board'), api('/discovery')]);
+      [data, discovery, sessions] = await Promise.all([api('/board'), api('/discovery'), api('/sessions')]);
       render();
+      notifyWaiting();
       if (openCard) refreshDrawer();
     } catch (err) {
       els.summary.textContent = `연결 끊김: ${err.message}`;
@@ -277,6 +329,15 @@
       els.search.focus();
     }
   });
+
+  const notifyBtn = $('notify');
+  if ('Notification' in window && Notification.permission === 'default') {
+    notifyBtn.hidden = false;
+    notifyBtn.addEventListener('click', async () => {
+      await Notification.requestPermission();
+      notifyBtn.hidden = true;
+    });
+  }
 
   refresh();
   setInterval(() => { if (!document.hidden) refresh(); }, POLL_MS);

@@ -55,7 +55,7 @@ body {
   margin: 0;
   height: 100vh;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto 1fr;
   background: var(--bg);
   color: var(--text);
   font: 14px/1.45 var(--font);
@@ -148,6 +148,34 @@ body {
 .notice[hidden] { display: none; }
 .notice-row + .notice-row { margin-top: 4px; }
 .notice button { margin-left: 8px; padding: 2px 8px; }
+
+.sessions {
+  display: flex;
+  gap: 10px;
+  padding: 10px 20px 0;
+  overflow-x: auto;
+}
+.sessions[hidden] { display: none; }
+.sgroup {
+  flex: none;
+  width: 280px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--c);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 8px 10px;
+}
+.sgroup.waiting { border-color: var(--review); border-top-color: var(--review); box-shadow: 0 0 0 1px var(--review); }
+.sgroup-head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.sgroup-head .count { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 12px; }
+.sgroup ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.sess { display: flex; align-items: baseline; gap: 6px; font-size: 12px; min-width: 0; }
+.sess-state { flex: none; padding: 0 6px; border-radius: 999px; font-weight: 600; }
+.sess-state.working { background: var(--run-bg); color: var(--run); }
+.sess-state.waiting { background: var(--review-bg); color: var(--review); }
+.sess-state.done, .sess-state.idle, .sess-state.unknown { background: var(--surface-2); color: var(--text-2); }
+.sess-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.sess-ago { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .board {
   display: grid;
@@ -295,5 +323,7 @@ dialog input, dialog textarea, dialog select {
   .actions input { flex: 1; width: auto; }
   .projects, .board { padding-left: 16px; padding-right: 16px; }
   .notice { margin-left: 16px; margin-right: 16px; }
+  .sessions { padding-left: 16px; padding-right: 16px; }
+  .sgroup { width: 78vw; }
   .board { grid-auto-columns: 85vw; }
 }

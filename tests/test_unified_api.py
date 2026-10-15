@@ -8,6 +8,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from symphony.trackers.file import FileBoardTracker
 from symphony.unified.api import build_unified_app
+from symphony.unified.sessions import SessionStore
 from symphony.unified.supervisor import Supervisor
 from tests.test_unified_supervisor import _registry
 
@@ -63,7 +64,12 @@ async def _client(tmp_path, *, running_in_a=("TASK-1",)):
     _ticket(sup, "a", "fix login", "body A")
     _ticket(sup, "b", "add chart")
     _ticket(sup, "b", "tune cache")
-    client = TestClient(TestServer(build_unified_app(sup, discovery=None)))
+    sessions = SessionStore(
+        lambda: [rt.project for rt in sup.runtimes()], watch_root=tmp_path, ignore_roots=[]
+    )
+    client = TestClient(
+        TestServer(build_unified_app(sup, discovery=None, sessions=sessions))
+    )
     await client.start_server()
     return client, sup
 
@@ -159,3 +165,28 @@ def test_index_serves_unified_page(tmp_path):
     status, html = _run(go())
     assert status == 200
     assert "unified.js" in html
+
+
+def test_session_events_show_up_grouped_by_project(tmp_path):
+    async def go():
+        client, _ = await _client(tmp_path)
+        try:
+            for event in (
+                {"hook_event_name": "UserPromptSubmit", "session_id": "s1",
+                 "cwd": str(tmp_path / "a" / "src"), "prompt": "fix the login bug"},
+                {"hook_event_name": "Notification", "session_id": "s2",
+                 "cwd": str(tmp_path / "loose"), "message": "needs permission"},
+            ):
+                resp = await client.post("/api/v1/unified/sessions/events", json=event)
+                assert resp.status == 200
+            return await (await client.get("/api/v1/unified/sessions")).json()
+        finally:
+            await client.close()
+
+    data = _run(go())
+    groups = {g["key"]: g for g in data["groups"]}
+    assert groups["a"]["sessions"][0]["state"] == "working"
+    assert groups["a"]["sessions"][0]["prompt"] == "fix the login bug"
+    assert groups["folder:loose"]["sessions"][0]["state"] == "waiting"
+    assert data["groups"][0]["key"] == "folder:loose"
+    assert data["counts"]["waiting"] == 1

@@ -12,6 +12,8 @@ from ..logging import configure_logging
 from ..projects import ProjectRegistry, projects_file
 from .api import build_unified_app, run_unified_app
 from .discovery import Discovery
+from .hooks import hooks_installed, install_hooks, uninstall_hooks
+from .sessions import SessionStore
 from .supervisor import Supervisor
 
 DEFAULT_EXCLUDE = "oh-my-symphony"
@@ -33,8 +35,17 @@ async def _serve(args: argparse.Namespace) -> int:
         )
         discovery_task = asyncio.create_task(discovery.run(), name="unified-discovery")
 
+    sessions = SessionStore(
+        lambda: [rt.project for rt in supervisor.runtimes()],
+        watch_root=Path(args.watch).expanduser() if args.watch else None,
+        ignore_roots=[Path.home() / "symphony_workspaces", Path("/Applications")],
+    )
+    scanner_task = asyncio.create_task(sessions.run_scanner(), name="unified-sessions")
+
     runner, port = await run_unified_app(
-        build_unified_app(supervisor, discovery=discovery), args.host, args.port
+        build_unified_app(supervisor, discovery=discovery, sessions=sessions),
+        args.host,
+        args.port,
     )
     host = "127.0.0.1" if args.host in {"", "0.0.0.0", "::"} else args.host
     hosted = sum(rt.orchestrator is not None for rt in supervisor.runtimes())
@@ -54,12 +65,35 @@ async def _serve(args: argparse.Namespace) -> int:
     finally:
         if discovery_task is not None:
             discovery_task.cancel()
+        scanner_task.cancel()
         await runner.cleanup()
         await supervisor.stop_all()
     return 0
 
 
+def _hooks_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="symphony unified hooks",
+        description="Manage the Claude Code hooks that feed the session monitor "
+        "(~/.claude/settings.json).",
+    )
+    parser.add_argument("action", choices=["install", "uninstall", "status"])
+    parser.add_argument("--port", type=int, default=8787)
+    args = parser.parse_args(argv)
+    if args.action == "install":
+        added = install_hooks(args.port)
+        print(f"installed: {', '.join(added) or 'already present'}")
+    elif args.action == "uninstall":
+        removed = uninstall_hooks()
+        print(f"removed: {', '.join(removed) or 'nothing to remove'}")
+    else:
+        print(f"installed: {', '.join(hooks_installed()) or 'none'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    if argv and argv[0] == "hooks":
+        return _hooks_main(argv[1:])
     parser = argparse.ArgumentParser(
         prog="symphony unified",
         description="Run every registered project in one process and serve one board.",
