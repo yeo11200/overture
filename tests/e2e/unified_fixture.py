@@ -15,6 +15,13 @@ root = Path(tempfile.mkdtemp(prefix="unified-e2e-"))
 os.environ["SYMPHONY_PROJECTS_FILE"] = str(root / "projects.json")
 
 from symphony.projects import REGISTRY_VERSION  # noqa: E402
+import asyncio  # noqa: E402
+
+from symphony.unified.sessions import SessionStore  # noqa: E402
+
+# Keep the suite independent of this machine's real Claude/Orca sessions:
+# sessions come only from the events each test posts.
+SessionStore.run_scanner = lambda self, *a, **k: asyncio.sleep(10**9)  # type: ignore[method-assign]
 from symphony.trackers.file import FileBoardTracker  # noqa: E402
 from symphony.unified.cli import main  # noqa: E402
 from symphony.workflow import WorkflowState  # noqa: E402

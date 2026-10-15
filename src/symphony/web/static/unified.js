@@ -37,6 +37,11 @@
   let lastRender = '';
   let openCard = null; // {project_id, identifier}
   const hidden = new Set(loadHidden());
+  let view = loadView();
+
+  function loadView() {
+    try { return localStorage.getItem('unified.view') === 'kanban' ? 'kanban' : 'graph'; } catch { return 'graph'; }
+  }
 
   function loadHidden() {
     try { return JSON.parse(localStorage.getItem('unified.hidden') || '[]'); } catch { return []; }
@@ -153,17 +158,13 @@
     el.hidden = sessions.groups.length === 0;
     el.innerHTML = sessions.groups.map((g) => {
       const waiting = g.sessions.some((s) => s.state === 'waiting');
-      const total = g.sessions.length + g.unknown;
+      const total = g.sessions.length;
       const rows = g.sessions.map((s) => `
         <li class="sess" title="${esc(s.cwd)}">
           <span class="sess-state ${esc(s.state)}">${SESSION_LABEL[s.state] || esc(s.state)}</span>
-          <span class="sess-text">${esc(s.state === 'waiting' && s.message ? s.message : s.prompt || '—')}</span>
+          <span class="sess-text">${esc(s.state === 'waiting' && s.message ? s.message : s.title || s.prompt || s.folder)}</span>
           <span class="sess-ago">${ago(s.updated_at)}</span>
         </li>`);
-      if (g.unknown) {
-        rows.push(`<li class="sess"><span class="sess-state unknown">${SESSION_LABEL.unknown}</span>
-          <span class="sess-text">실행 중 ${g.unknown}개 (이벤트 대기)</span></li>`);
-      }
       return `
         <article class="sgroup${waiting ? ' waiting' : ''}" style="--c:${color(g.project_id || g.key)}">
           <div class="sgroup-head"><span class="dot"></span>${esc(g.name)}<span class="count">세션 ${total}</span></div>
@@ -196,21 +197,39 @@
     document.title = attention ? `(${attention}) 통합 보드` : '통합 보드';
   }
 
+  function applyView() {
+    const graph = view === 'graph';
+    for (const tab of document.querySelectorAll('.viewtabs [data-view]')) {
+      tab.setAttribute('aria-selected', String(tab.dataset.view === view));
+    }
+    els.projects.hidden = graph;
+    els.board.hidden = graph;
+    $('graph').hidden = !graph;
+    $('search').hidden = graph;
+    if (graph) $('sessions').hidden = true;
+  }
+
   function render(force = false) {
-    const key = JSON.stringify([data, discovery, sessions, els.search.value, [...hidden], Math.floor(Date.now() / 30000)]);
+    if (window.UnifiedGraph?.isBusy()) return; // never yank a drag or an open editor
+    const key = JSON.stringify([view, data, discovery, sessions, els.search.value, [...hidden], Math.floor(Date.now() / 30000)]);
     if (!force && key === lastRender) return;
     lastRender = key;
     renderSummary();
-    renderProjects();
     renderNotice();
-    renderSessions();
-    renderBoard();
+    if (view === 'graph') {
+      window.UnifiedGraph.render($('graph'), sessions, { color, api, refresh });
+    } else {
+      renderProjects();
+      renderSessions();
+      renderBoard();
+    }
+    applyView();
   }
 
-  async function refresh() {
+  async function refresh(force = false) {
     try {
       [data, discovery, sessions] = await Promise.all([api('/board'), api('/discovery'), api('/sessions')]);
-      render();
+      render(force);
       notifyWaiting();
       if (openCard) refreshDrawer();
     } catch (err) {
@@ -329,6 +348,17 @@
       els.search.focus();
     }
   });
+
+  window.UnifiedGraph.attach($('graph'));
+  for (const tab of document.querySelectorAll('.viewtabs [data-view]')) {
+    tab.addEventListener('click', () => {
+      view = tab.dataset.view;
+      try { localStorage.setItem('unified.view', view); } catch { /* private mode */ }
+      render(true);
+    });
+  }
+  window.addEventListener('resize', () => render(true));
+  applyView();
 
   const notifyBtn = $('notify');
   if ('Notification' in window && Notification.permission === 'default') {

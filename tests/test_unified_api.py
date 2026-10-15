@@ -8,6 +8,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from symphony.trackers.file import FileBoardTracker
 from symphony.unified.api import build_unified_app
+from symphony.unified.graph import GraphNotes
 from symphony.unified.sessions import SessionStore
 from symphony.unified.supervisor import Supervisor
 from tests.test_unified_supervisor import _registry
@@ -68,7 +69,12 @@ async def _client(tmp_path, *, running_in_a=("TASK-1",)):
         lambda: [rt.project for rt in sup.runtimes()], watch_root=tmp_path, ignore_roots=[]
     )
     client = TestClient(
-        TestServer(build_unified_app(sup, discovery=None, sessions=sessions))
+        TestServer(
+            build_unified_app(
+                sup, discovery=None, sessions=sessions,
+                graph=GraphNotes(tmp_path / "graph.json"),
+            )
+        )
     )
     await client.start_server()
     return client, sup
@@ -190,3 +196,34 @@ def test_session_events_show_up_grouped_by_project(tmp_path):
     assert groups["folder:loose"]["sessions"][0]["state"] == "waiting"
     assert data["groups"][0]["key"] == "folder:loose"
     assert data["counts"]["waiting"] == 1
+
+
+def test_roles_threads_and_edges_round_trip(tmp_path):
+    async def go():
+        client, _ = await _client(tmp_path)
+        try:
+            for sid in ("impl", "rev"):
+                await client.post("/api/v1/unified/sessions/events", json={
+                    "hook_event_name": "UserPromptSubmit", "session_id": sid,
+                    "cwd": str(tmp_path / "a"), "prompt": sid})
+            r1 = await client.patch("/api/v1/unified/sessions/rev",
+                                    json={"role": "review", "thread": "minor units"})
+            bad_role = await client.patch("/api/v1/unified/sessions/rev", json={"role": "boss"})
+            ghost = await client.patch("/api/v1/unified/sessions/ghost", json={"role": "main"})
+            e1 = await client.post("/api/v1/unified/sessions/edges", json={"from": "impl", "to": "rev"})
+            cycle = await client.post("/api/v1/unified/sessions/edges", json={"from": "rev", "to": "impl"})
+            listed = await (await client.get("/api/v1/unified/sessions")).json()
+            d1 = await client.delete("/api/v1/unified/sessions/edges", json={"from": "impl", "to": "rev"})
+            after = await (await client.get("/api/v1/unified/sessions")).json()
+            return (r1.status, bad_role.status, ghost.status, e1.status, cycle.status,
+                    listed, await d1.json(), after)
+        finally:
+            await client.close()
+
+    r1, bad_role, ghost, e1, cycle, listed, d1, after = _run(go())
+    assert (r1, bad_role, ghost, e1, cycle) == (200, 400, 404, 201, 409)
+    rev = next(s for g in listed["groups"] for s in g["sessions"] if s["id"] == "rev")
+    assert rev["role"] == "review" and rev["thread"] == "minor units"
+    assert listed["edges"] == [["impl", "rev"]]
+    assert d1 == {"removed": True}
+    assert after["edges"] == []

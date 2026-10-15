@@ -54,8 +54,8 @@
 body {
   margin: 0;
   height: 100vh;
-  display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   color: var(--text);
   font: 14px/1.45 var(--font);
@@ -177,7 +177,14 @@ body {
 .sess-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
 .sess-ago { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+[hidden] { display: none !important; }
+
+.viewtabs { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.viewtabs button { border: 0; background: none; color: var(--text-2); font: inherit; padding: 4px 12px; border-radius: 6px; cursor: pointer; }
+.viewtabs button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
+
 .board {
+  flex: 1;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(260px, 1fr);
@@ -316,6 +323,102 @@ dialog input, dialog textarea, dialog select {
 }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .form-error { margin: 0; min-height: 1em; color: var(--danger); font-size: 13px; }
+
+/* -- session graph ---------------------------------------------------------- */
+.graph { flex: 1; min-height: 0; overflow: auto; padding: 8px 20px 24px; }
+.gcanvas { position: relative; margin: 0 auto; }
+.glinks { position: absolute; inset: 0; overflow: visible; }
+.glink { fill: none; stroke: var(--border); stroke-width: 1.5; }
+.gedge, .gdrag { fill: none; stroke: var(--review); stroke-width: 2; }
+.gedge-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; pointer-events: stroke; }
+.gedge-hit:hover + .gedge, .gedge:hover { stroke-width: 3; }
+#garrow path { fill: var(--review); }
+.gnode {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 200px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gnode.project { background: color-mix(in srgb, var(--c) 12%, var(--surface)); border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--border)); }
+.gnode.thread { background: var(--surface); border: 1.5px solid var(--review); color: var(--text); font-weight: 500; }
+.gcount { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 12px; }
+.gcard {
+  position: absolute;
+  width: 300px;
+  height: 92px;
+  padding: 10px 14px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gcard.waiting { border-color: var(--review); box-shadow: 0 0 0 2px color-mix(in srgb, var(--review) 35%, transparent); }
+.gcard-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sdot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.sdot.working { background: var(--run); animation: pulse 1.4s ease-in-out infinite; }
+.sdot.waiting { background: var(--review); }
+.sdot.done { background: var(--focus); }
+.sdot.idle { background: var(--text-2); }
+.sdot.unknown { background: transparent; border: 1.5px solid var(--muted); }
+@media (prefers-reduced-motion: reduce) { .sdot.working { animation: none; } }
+.gtitle { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grole {
+  flex: none;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 1px 10px;
+  font: 600 11px/1.6 var(--font);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+.grole.set { background: var(--review); color: #fff; }
+.gsub { font-size: 12px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gline { display: flex; gap: 8px; font-size: 12px; color: var(--text-2); min-width: 0; }
+.gtext { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gago { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gthread {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  font: 11px var(--font);
+  cursor: pointer;
+}
+.gthread:hover { color: var(--review); }
+.gthread-input { width: 100%; font: 12px var(--font); padding: 1px 6px; border: 1px solid var(--review); border-radius: 6px; background: var(--bg); color: var(--text); }
+.gport {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--focus);
+  border: 3px solid var(--surface);
+  cursor: crosshair;
+  touch-action: none;
+}
+.gempty { margin: 80px auto; text-align: center; color: var(--muted); line-height: 1.8; }
+.graph.narrow { padding: 12px 16px; }
+.glist h3 { display: flex; align-items: center; gap: 6px; margin: 16px 0 8px; font-size: 14px; }
+.glist .gcard { position: relative; left: 0 !important; top: 0 !important; width: 100%; margin-bottom: 8px; }
+.glist .gport { display: none; }
 
 @media (max-width: 640px) {
   .topbar { flex-wrap: wrap; padding: 10px 16px; }

@@ -28,6 +28,7 @@ from ..webapi import (
     _valid_states,
     _wrap,
 )
+from .graph import GraphError, GraphNotes
 from .sessions import SessionStore
 from .supervisor import ProjectRuntime, Supervisor
 
@@ -79,7 +80,11 @@ def _merge_columns(runtimes: list[ProjectRuntime]) -> list[dict[str, Any]]:
 
 
 def build_unified_app(
-    supervisor: Supervisor, *, discovery: Any, sessions: SessionStore | None = None
+    supervisor: Supervisor,
+    *,
+    discovery: Any,
+    sessions: SessionStore | None = None,
+    graph: GraphNotes | None = None,
 ) -> web.Application:
     # Hook payloads carry the full prompt, which can be a large paste.
     app = web.Application(middlewares=[_hub_guard], client_max_size=4 * 1024 * 1024)
@@ -197,12 +202,66 @@ def build_unified_app(
 
     async def session_list(_request: web.Request) -> web.Response:
         if sessions is None:
-            return web.json_response({"groups": [], "counts": {}})
-        return web.json_response(sessions.snapshot(), headers={"Cache-Control": "no-store"})
+            return web.json_response({"groups": [], "counts": {}, "edges": []})
+        snapshot = sessions.snapshot()
+        alive = set()
+        for group in snapshot["groups"]:
+            for session in group["sessions"]:
+                alive.add(session["id"])
+                notes = graph.notes_for(session["id"]) if graph else {}
+                session["role"] = notes.get("role", "")
+                session["thread"] = notes.get("thread", "")
+        snapshot["edges"] = [list(e) for e in graph.edges(alive)] if graph else []
+        return web.json_response(snapshot, headers={"Cache-Control": "no-store"})
+
+    def _graph() -> GraphNotes:
+        if graph is None:
+            raise web.HTTPConflict(
+                text='{"error":{"code":"graph_disabled","message":"session graph is off"}}',
+                content_type="application/json",
+            )
+        return graph
+
+    def _alive_or_404(session_id: str) -> None:
+        if sessions is None or session_id not in sessions.alive_ids():
+            raise web.HTTPNotFound(
+                text='{"error":{"code":"session_not_found","message":"unknown session"}}',
+                content_type="application/json",
+            )
+
+    async def session_patch(request: web.Request) -> web.Response:
+        notes = _graph()
+        session_id = request.match_info["session_id"]
+        _alive_or_404(session_id)
+        body = await _read_json(request)
+        try:
+            result = notes.annotate(session_id, role=body.get("role"), thread=body.get("thread"))
+        except GraphError as exc:
+            return _json_error(400, "invalid_annotation", str(exc))
+        return web.json_response({"id": session_id, **result})
+
+    async def edge_change(request: web.Request) -> web.Response:
+        notes = _graph()
+        body = await _read_json(request)
+        source, target = body.get("from"), body.get("to")
+        if not isinstance(source, str) or not isinstance(target, str):
+            return _json_error(400, "invalid_edge", "from and to are required")
+        if request.method == "DELETE":
+            return web.json_response({"removed": notes.remove_edge(source, target)})
+        _alive_or_404(source)
+        _alive_or_404(target)
+        try:
+            notes.add_edge(source, target)
+        except GraphError as exc:
+            return _json_error(409, "invalid_edge", str(exc))
+        return web.json_response({"from": source, "to": target}, status=201)
 
     app.router.add_get("/", index)
     app.router.add_post("/api/v1/unified/sessions/events", _wrap(session_event))
     app.router.add_get("/api/v1/unified/sessions", _wrap(session_list))
+    app.router.add_post("/api/v1/unified/sessions/edges", _wrap(edge_change))
+    app.router.add_delete("/api/v1/unified/sessions/edges", _wrap(edge_change))
+    app.router.add_patch("/api/v1/unified/sessions/{session_id}", _wrap(session_patch))
     app.router.add_static("/static/", STATIC_DIR)
     app.router.add_get("/api/v1/unified/board", _wrap(board))
     app.router.add_post(

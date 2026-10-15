@@ -12,6 +12,7 @@ from ..logging import configure_logging
 from ..projects import ProjectRegistry, projects_file
 from .api import build_unified_app, run_unified_app
 from .discovery import Discovery
+from .graph import GraphNotes
 from .hooks import hooks_installed, install_hooks, uninstall_hooks
 from .sessions import SessionStore
 from .supervisor import Supervisor
@@ -40,10 +41,13 @@ async def _serve(args: argparse.Namespace) -> int:
         watch_root=Path(args.watch).expanduser() if args.watch else None,
         ignore_roots=[Path.home() / "symphony_workspaces", Path("/Applications")],
     )
-    scanner_task = asyncio.create_task(sessions.run_scanner(), name="unified-sessions")
+    graph = GraphNotes(projects_file().parent / "unified-graph.json")
+    scanner_task = asyncio.create_task(
+        sessions.run_scanner(on_scan=graph.prune), name="unified-sessions"
+    )
 
     runner, port = await run_unified_app(
-        build_unified_app(supervisor, discovery=discovery, sessions=sessions),
+        build_unified_app(supervisor, discovery=discovery, sessions=sessions, graph=graph),
         args.host,
         args.port,
     )

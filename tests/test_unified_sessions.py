@@ -84,9 +84,8 @@ def test_reconcile_counts_unknown_and_drops_vanished():
     store.apply(_ev("UserPromptSubmit", sid="a", cwd="/w/app"))
     store.reconcile({"/w/app": 3, "/w/app/api": 1, "/w/other": 2})
     groups = _groups(store)
-    assert groups["app"]["unknown"] == 2
-    assert groups["app-api"]["unknown"] == 1
-    assert groups["folder:other"]["unknown"] == 2
+    unknown = lambda key: sum(s["state"] == "unknown" for s in groups[key]["sessions"])
+    assert (unknown("app"), unknown("app-api"), unknown("folder:other")) == (2, 1, 2)
     assert store.snapshot()["counts"]["unknown"] == 5
 
     store.reconcile({})  # every process gone
@@ -117,3 +116,135 @@ def test_waiting_groups_and_sessions_sort_first():
 def test_parse_lsof_cwds():
     out = "p101\nfcwd\nn/w/app\np102\nfcwd\nn/\np103\nfcwd\nn/w/app\n"
     assert parse_lsof_cwds(out) == {"/w/app": 2, "/": 1}
+
+
+# -- spec 003: repo grouping, titles, inferred unknowns ------------------------
+
+import json as _json
+import os as _os
+
+from symphony.unified.titles import title_from_transcript, transcript_dir_for
+
+
+def _transcript(root: Path, cwd: str, sid: str, *titles: str, mtime: float | None = None) -> Path:
+    folder = transcript_dir_for(cwd, root)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{sid}.jsonl"
+    lines = [_json.dumps({"type": "user", "message": "hi"})]
+    lines += [_json.dumps({"type": "ai-title", "aiTitle": t, "sessionId": sid}) for t in titles]
+    path.write_text("\n".join(lines) + "\n")
+    if mtime is not None:
+        _os.utime(path, (mtime, mtime))
+    return path
+
+
+def _repo_store(tmp_path, repos):
+    projects = [Project("dash", "db-ga-dashboard", "/w/dash", "/w/dash/WORKFLOW.md", "127.0.0.1", 1)]
+    store = SessionStore(
+        lambda: projects,
+        watch_root=ROOT,
+        ignore_roots=[],
+        repo_info=lambda cwd: repos.get(cwd, (None, None)),
+        transcripts_root=tmp_path,
+    )
+    return store
+
+
+def test_worktree_groups_under_its_repository_with_branch(tmp_path):
+    store = _repo_store(tmp_path, {
+        "/w/dash": ("/w/dash", "main"),
+        "/w/dash-perf": ("/w/dash", "feat/perf"),
+        "/w/lib-wt": ("/w/lib", "exp"),
+    })
+    store.apply(_ev("UserPromptSubmit", sid="a", cwd="/w/dash"))
+    store.apply(_ev("UserPromptSubmit", sid="b", cwd="/w/dash-perf"))
+    store.apply(_ev("UserPromptSubmit", sid="c", cwd="/w/lib-wt"))
+    groups = _groups(store)
+    dash = {s["id"]: s for s in groups["dash"]["sessions"]}
+    assert set(dash) == {"a", "b"}
+    assert dash["b"]["branch"] == "feat/perf"
+    assert dash["b"]["folder"] == "dash-perf"
+    assert groups["folder:lib"]["sessions"][0]["branch"] == "exp"
+
+
+def test_title_comes_from_transcript_tail(tmp_path):
+    path = _transcript(tmp_path, "/w/dash", "s1", "첫 제목", "데스크탑 카카오 이미지 해상도 변경")
+    assert title_from_transcript(path) == "데스크탑 카카오 이미지 해상도 변경"
+    store = _repo_store(tmp_path, {})
+    store.apply(_ev("UserPromptSubmit", sid="s1", cwd="/w/dash", transcript_path=str(path)))
+    assert _groups(store)["dash"]["sessions"][0]["title"] == "데스크탑 카카오 이미지 해상도 변경"
+
+
+def test_transcript_outside_root_is_not_read(tmp_path):
+    outside = tmp_path / "elsewhere"
+    path = _transcript(outside, "/w/dash", "s1", "secret")
+    store = _repo_store(tmp_path / "root", {})
+    store.apply(_ev("UserPromptSubmit", sid="s1", cwd="/w/dash", transcript_path=str(path)))
+    assert _groups(store)["dash"]["sessions"][0]["title"] == ""
+
+
+def test_unknown_processes_get_names_from_newest_transcripts(tmp_path):
+    _transcript(tmp_path, "/w/dash", "old", "오래된 세션", mtime=100)
+    _transcript(tmp_path, "/w/dash", "new", "Figma 연동", mtime=300)
+    _transcript(tmp_path, "/w/dash", "mid", "Orca 스킬", mtime=200)
+    _transcript(tmp_path, "/w/dash", "known", "이미 아는 세션", mtime=400)
+    store = _repo_store(tmp_path, {})
+    store.apply(_ev("UserPromptSubmit", sid="known", cwd="/w/dash"))
+    store.reconcile({"/w/dash": 3}, {"/w/notes": 1})
+    groups = _groups(store)
+    dash = groups["dash"]
+    inferred = [s for s in dash["sessions"] if s["state"] == "unknown"]
+    assert [s["title"] for s in inferred] == ["Figma 연동", "Orca 스킬"]
+    codex = groups["folder:notes"]["sessions"][0]
+    assert codex["tool"] == "codex" and codex["state"] == "unknown"
+    assert store.alive_ids() >= {"known", "new", "mid"}
+
+
+def test_unknown_without_transcripts_still_gets_one_card_each(tmp_path):
+    store = _repo_store(tmp_path, {})
+    store.reconcile({"/w/dash": 2})
+    cards = _groups(store)["dash"]["sessions"]
+    assert len(cards) == 2 and all(c["state"] == "unknown" for c in cards)
+
+
+# -- Orca terminals --------------------------------------------------------------
+
+from symphony.unified.sessions import parse_orca_terminals
+
+ORCA = {"ok": True, "result": {"terminals": [
+    {"handle": "term_a", "agentIdentity": "claude", "connected": True, "title": "✳ Figma 데스크탑 앱 MCP 연동",
+     "worktreePath": "/w/dash", "branch": "refs/heads/main", "lastOutputAt": 1_000_000},
+    {"handle": "term_b", "agentIdentity": "claude", "connected": True, "title": "◐ 데스크탑 카카오 이미지 해상도 변경",
+     "worktreePath": "/w/dash-perf", "branch": "refs/heads/feat/perf", "lastOutputAt": 2_000_000},
+    {"handle": "term_c", "agentIdentity": "codex", "connected": True, "title": "기도노트 사이트 기획하자 | _shin",
+     "worktreePath": "/w/notes", "branch": None, "lastOutputAt": 0},
+    {"handle": "term_d", "agentIdentity": None, "connected": True, "title": "Terminal 1", "worktreePath": "/w/dash"},
+    {"handle": "term_e", "agentIdentity": "claude", "connected": False, "title": "✳ gone", "worktreePath": "/w/dash"},
+]}}
+
+
+def test_parse_orca_terminals_reads_tab_titles_and_state():
+    terms = {t["handle"]: t for t in parse_orca_terminals(ORCA)}
+    assert set(terms) == {"term_a", "term_b", "term_c"}
+    assert (terms["term_a"]["title"], terms["term_a"]["state"]) == ("Figma 데스크탑 앱 MCP 연동", "idle")
+    assert (terms["term_b"]["state"], terms["term_b"]["branch"]) == ("working", "feat/perf")
+    assert (terms["term_c"]["title"], terms["term_c"]["tool"]) == ("기도노트 사이트 기획하자", "codex")
+
+
+def test_orca_is_the_session_list_and_merges_hook_state(tmp_path):
+    store = _repo_store(tmp_path, {"/w/dash-perf": ("/w/dash", "feat/perf")})
+    path = _transcript(tmp_path, "/w/dash", "s1", "Figma 데스크탑 앱 MCP 연동")
+    store.apply(_ev("Notification", sid="s1", cwd="/w/dash", message="needs permission",
+                    transcript_path=str(path)))
+    store.apply(_ev("UserPromptSubmit", sid="outside", cwd="/w/elsewhere", prompt="not in orca"))
+    store.reconcile({"/w/dash": 5, "/w/elsewhere": 1})  # ps unknowns are ignored in Orca mode
+    store.set_orca(parse_orca_terminals(ORCA))
+    groups = _groups(store)
+    dash = {s["id"]: s for s in groups["dash"]["sessions"]}
+    assert set(dash) == {"term_a", "term_b"}  # the worktree tab sits under its repo
+    assert dash["term_a"]["state"] == "waiting" and dash["term_a"]["message"] == "needs permission"
+    assert dash["term_b"]["title"] == "데스크탑 카카오 이미지 해상도 변경"
+    assert dash["term_b"]["branch"] == "feat/perf"
+    assert groups["folder:notes"]["sessions"][0]["tool"] == "codex"
+    assert groups["folder:elsewhere"]["sessions"][0]["id"] == "outside"
+    assert store.alive_ids() == {"term_a", "term_b", "term_c", "outside"}
