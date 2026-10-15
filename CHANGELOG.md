@@ -8,6 +8,16 @@ this file is the in-repo summary.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 2026-10-15 - Overture: one board for every agent session
+
+### Added
+- `overture` / `symphony unified`: every registered project's orchestrator in one process on one port, with a combined Kanban, per-project pause, and auto-registration of new git repos under `--watch`.
+- Session chart (default view): live Claude Code and Codex sessions grouped by repository (worktrees under their repo), titled from Orca tabs, Claude transcripts or Codex's state DB; roles, threads and dependency arrows; desktop notification when a session waits for you.
+- Claude Code plugin `overture` (marketplace `yeo11200/overture`) with the `/overture` setup skill; `overture hooks install --codex`; `overture autostart install` (macOS launchd).
+
+### Fixed
+- Orchestrators no longer leak `SYMPHONY_WORKFLOW_DIR` across projects when several run in one process, and a per-project `symphony service` refuses projects hosted by a live unified process.
+
 ## [0.26.0] - 2026-09-22 - First-run experience: demo keeps the generated workflow, project-facing agent files, clean git status
 
 ### Fixed

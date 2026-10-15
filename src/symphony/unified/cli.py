@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from ..logging import configure_logging
-from ..projects import ProjectRegistry, projects_file
+from ..projects import ProjectRegistry, projects_file, source_checkout
 from .api import build_unified_app, run_unified_app
 from .discovery import Discovery
 from .graph import GraphNotes
@@ -31,7 +31,9 @@ async def _serve(args: argparse.Namespace) -> int:
             Path(args.watch),
             registry=registry,
             supervisor=supervisor,
-            exclude={name.strip() for name in args.exclude.split(",") if name.strip()},
+            # Never offer Overture's own checkout as a project, whatever its folder is called.
+            exclude={name.strip() for name in args.exclude.split(",") if name.strip()}
+            | {source_checkout().name},
             failures_path=projects_file().parent / "unified-failures.json",
         )
         discovery_task = asyncio.create_task(discovery.run(), name="unified-discovery")
