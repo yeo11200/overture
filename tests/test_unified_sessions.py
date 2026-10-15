@@ -248,3 +248,18 @@ def test_orca_is_the_session_list_and_merges_hook_state(tmp_path):
     assert groups["folder:notes"]["sessions"][0]["tool"] == "codex"
     assert groups["folder:elsewhere"]["sessions"][0]["id"] == "outside"
     assert store.alive_ids() == {"term_a", "term_b", "term_c", "outside"}
+
+
+def test_untitled_session_pairs_with_nearest_orca_folder(tmp_path):
+    store = _repo_store(tmp_path, {})
+    store.apply(_ev("PermissionRequest", sid="h1", cwd="/w/dash/src", tool_name="Bash"))
+    store.reconcile({"/w/dash/src": 1})
+    store.set_orca([
+        {"handle": "parent", "tool": "claude", "title": "상위 폴더 탭", "state": "idle",
+         "path": "/w", "branch": None, "last_output": 0},
+        {"handle": "near", "tool": "claude", "title": "가까운 탭", "state": "idle",
+         "path": "/w/dash", "branch": None, "last_output": 0},
+    ])
+    cards = {s["id"]: s for g in store.snapshot()["groups"] for s in g["sessions"]}
+    assert cards["near"]["state"] == "waiting"
+    assert cards["parent"]["state"] == "idle"

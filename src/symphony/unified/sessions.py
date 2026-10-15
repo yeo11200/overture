@@ -357,16 +357,25 @@ class SessionStore:
         hooks = list(self._sessions.values())
         used: set[str] = set()
 
+        def inside(cwd: str, path: str) -> bool:
+            return bool(path) and (cwd == path or cwd.startswith(path + "/"))
+
+        # Untitled sessions pair with the tab whose folder is nearest to their
+        # cwd, so a session in ~/code/app never lands on a tab opened at ~/code.
+        nearest: dict[str, AgentSession] = {}
+        for h in hooks:
+            if h.title:
+                continue
+            terms = [t for t in self._orca if inside(h.cwd, t["path"]) and t["handle"] not in nearest]
+            if terms:
+                nearest[max(terms, key=lambda t: len(t["path"]))["handle"]] = h
+
         def match(term: dict[str, Any]) -> AgentSession | None:
             for h in hooks:  # Claude names the tab after the session title
                 if h.id not in used and h.title and h.title == term["title"]:
                     return h
-            for h in hooks:  # untitled yet: same folder is the best hint
-                if h.id not in used and not h.title and term["path"] and (
-                    h.cwd == term["path"] or h.cwd.startswith(term["path"] + "/")
-                ):
-                    return h
-            return None
+            h = nearest.get(term["handle"])
+            return h if h is not None and h.id not in used else None
 
         cards = []
         for term in self._orca:
